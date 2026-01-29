@@ -1,0 +1,1081 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>miau • Grade Calculator</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --cream: #FDF6F0;
+            --cream-dark: #F5EDE5;
+            --peach: #FFCDB2;
+            --peach-dark: #FFB4A2;
+            --terracotta: #E07A5F;
+            --terracotta-dark: #C96A52;
+            --charcoal: #2D3142;
+            --charcoal-light: #4F5D75;
+            --sage: #A8DADC;
+            --sage-dark: #8BC4C6;
+            --success: #7CB518;
+            --warning: #FFB627;
+            --shadow-soft: 0 4px 20px rgba(45, 49, 66, 0.08);
+            --shadow-medium: 0 8px 30px rgba(45, 49, 66, 0.12);
+            --shadow-lift: 0 12px 40px rgba(45, 49, 66, 0.15);
+            --radius-sm: 12px;
+            --radius-md: 20px;
+            --radius-lg: 28px;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'DM Sans', sans-serif;
+            background: var(--cream);
+            color: var(--charcoal);
+            min-height: 100vh;
+            line-height: 1.6;
+            background-image:
+                radial-gradient(circle at 20% 80%, rgba(255, 205, 178, 0.3) 0%, transparent 50%),
+                radial-gradient(circle at 80% 20%, rgba(168, 218, 220, 0.2) 0%, transparent 50%),
+                url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+            background-blend-mode: normal, normal, soft-light;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 40px 24px 80px;
+        }
+
+        /* Header */
+        header {
+            text-align: center;
+            margin-bottom: 48px;
+            animation: fadeInDown 0.8s ease-out;
+        }
+
+        @keyframes fadeInDown {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .logo {
+            display: inline-flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+
+        .logo-icon {
+            width: 56px;
+            height: 56px;
+            background: linear-gradient(135deg, var(--terracotta), var(--peach-dark));
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+            box-shadow: var(--shadow-medium);
+            animation: float 3s ease-in-out infinite;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-6px); }
+        }
+
+        h1 {
+            font-family: 'Fraunces', serif;
+            font-size: 3.5rem;
+            font-weight: 700;
+            color: var(--charcoal);
+            letter-spacing: -0.02em;
+        }
+
+        .tagline {
+            font-size: 1.1rem;
+            color: var(--charcoal-light);
+            margin-top: 8px;
+        }
+
+        /* Save indicator */
+        .save-indicator {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            background: var(--charcoal);
+            color: white;
+            padding: 12px 20px;
+            border-radius: 50px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            box-shadow: var(--shadow-lift);
+            opacity: 0;
+            transform: translateY(20px);
+            transition: all 0.3s ease;
+            z-index: 1000;
+        }
+
+        .save-indicator.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .save-indicator svg {
+            width: 16px;
+            height: 16px;
+        }
+
+        /* Header actions */
+        .header-actions {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-bottom: 32px;
+        }
+
+        .clear-data-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: white;
+            color: var(--charcoal-light);
+            border: 2px solid var(--cream-dark);
+            padding: 14px 24px;
+            border-radius: 50px;
+            font-family: 'DM Sans', sans-serif;
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .clear-data-btn:hover {
+            border-color: var(--terracotta);
+            color: var(--terracotta);
+        }
+
+        .clear-data-btn svg {
+            width: 18px;
+            height: 18px;
+        }
+
+        /* Add Class Button */
+        .add-class-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            background: linear-gradient(135deg, var(--terracotta), var(--terracotta-dark));
+            color: white;
+            border: none;
+            padding: 16px 32px;
+            border-radius: 50px;
+            font-family: 'DM Sans', sans-serif;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            box-shadow: var(--shadow-medium), 0 4px 0 var(--terracotta-dark);
+            transition: all 0.2s ease;
+        }
+
+        .add-class-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-lift), 0 6px 0 var(--terracotta-dark);
+        }
+
+        .add-class-btn:active {
+            transform: translateY(2px);
+            box-shadow: var(--shadow-soft), 0 2px 0 var(--terracotta-dark);
+        }
+
+        .add-class-btn svg {
+            width: 20px;
+            height: 20px;
+        }
+
+        /* Classes Container */
+        .classes-container {
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        /* Class Card */
+        .class-card {
+            background: white;
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-soft);
+            overflow: hidden;
+            animation: slideIn 0.5s ease-out;
+            transition: box-shadow 0.3s ease, transform 0.3s ease;
+        }
+
+        .class-card:hover {
+            box-shadow: var(--shadow-medium);
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px) scale(0.98);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+        }
+
+        .class-header {
+            background: linear-gradient(135deg, var(--cream-dark), var(--cream));
+            padding: 20px 24px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            border-bottom: 2px solid var(--cream-dark);
+        }
+
+        .class-name-input {
+            flex: 1;
+            font-family: 'Fraunces', serif;
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: var(--charcoal);
+            background: transparent;
+            border: none;
+            outline: none;
+            padding: 8px 0;
+            border-bottom: 2px dashed transparent;
+            transition: border-color 0.2s ease;
+        }
+
+        .class-name-input:focus {
+            border-bottom-color: var(--terracotta);
+        }
+
+        .class-name-input::placeholder {
+            color: var(--charcoal-light);
+            opacity: 0.5;
+        }
+
+        .final-grade {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: var(--charcoal);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 50px;
+            font-weight: 600;
+            font-size: 1.1rem;
+            min-width: 120px;
+            justify-content: center;
+        }
+
+        .final-grade.excellent {
+            background: linear-gradient(135deg, var(--success), #6aa314);
+        }
+
+        .final-grade.good {
+            background: linear-gradient(135deg, var(--sage-dark), var(--sage));
+            color: var(--charcoal);
+        }
+
+        .final-grade.warning {
+            background: linear-gradient(135deg, var(--warning), #e6a422);
+            color: var(--charcoal);
+        }
+
+        .final-grade.danger {
+            background: linear-gradient(135deg, var(--terracotta), var(--terracotta-dark));
+        }
+
+        .delete-class-btn {
+            background: none;
+            border: none;
+            color: var(--charcoal-light);
+            cursor: pointer;
+            padding: 8px;
+            border-radius: 50%;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .delete-class-btn:hover {
+            background: var(--peach);
+            color: var(--terracotta-dark);
+            transform: scale(1.1);
+        }
+
+        .delete-class-btn svg {
+            width: 20px;
+            height: 20px;
+        }
+
+        /* Toggle button */
+        .toggle-class-btn {
+            background: none;
+            border: none;
+            color: var(--charcoal-light);
+            cursor: pointer;
+            padding: 8px;
+            border-radius: 50%;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .toggle-class-btn:hover {
+            background: var(--sage);
+            color: var(--charcoal);
+        }
+
+        .toggle-class-btn svg {
+            width: 20px;
+            height: 20px;
+            transition: transform 0.3s ease;
+        }
+
+        .class-card.collapsed .toggle-class-btn svg {
+            transform: rotate(-90deg);
+        }
+
+        /* Grades Section */
+        .grades-section {
+            padding: 24px;
+            max-height: 2000px;
+            overflow: hidden;
+            transition: max-height 0.4s ease, padding 0.4s ease, opacity 0.3s ease;
+            opacity: 1;
+        }
+
+        .class-card.collapsed .grades-section {
+            max-height: 0;
+            padding: 0 24px;
+            opacity: 0;
+        }
+
+        .class-card.collapsed .class-header {
+            border-bottom-color: transparent;
+        }
+
+        .grades-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .grade-item {
+            display: grid;
+            grid-template-columns: 1fr 100px 100px 44px;
+            gap: 12px;
+            align-items: center;
+            padding: 12px 16px;
+            background: var(--cream);
+            border-radius: var(--radius-sm);
+            transition: all 0.2s ease;
+            animation: fadeIn 0.3s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
+        }
+
+        .grade-item:hover {
+            background: var(--cream-dark);
+        }
+
+        .grade-item input {
+            font-family: 'DM Sans', sans-serif;
+            font-size: 0.95rem;
+            padding: 10px 14px;
+            border: 2px solid transparent;
+            border-radius: var(--radius-sm);
+            background: white;
+            color: var(--charcoal);
+            transition: all 0.2s ease;
+        }
+
+        .grade-item input:focus {
+            outline: none;
+            border-color: var(--sage);
+            box-shadow: 0 0 0 4px rgba(168, 218, 220, 0.3);
+        }
+
+        .grade-item input::placeholder {
+            color: var(--charcoal-light);
+            opacity: 0.5;
+        }
+
+        .grade-item input[type="number"] {
+            text-align: center;
+            -moz-appearance: textfield;
+        }
+
+        .grade-item input[type="number"]::-webkit-outer-spin-button,
+        .grade-item input[type="number"]::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+
+        .grade-name {
+            font-weight: 500;
+        }
+
+        .delete-grade-btn {
+            background: none;
+            border: none;
+            color: var(--charcoal-light);
+            cursor: pointer;
+            padding: 8px;
+            border-radius: 50%;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .delete-grade-btn:hover {
+            background: var(--peach);
+            color: var(--terracotta-dark);
+        }
+
+        .delete-grade-btn svg {
+            width: 18px;
+            height: 18px;
+        }
+
+        .add-grade-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: var(--cream);
+            color: var(--charcoal-light);
+            border: 2px dashed var(--peach);
+            padding: 12px 20px;
+            border-radius: var(--radius-sm);
+            font-family: 'DM Sans', sans-serif;
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            width: 100%;
+            justify-content: center;
+        }
+
+        .add-grade-btn:hover {
+            background: var(--peach);
+            border-color: var(--peach-dark);
+            color: var(--charcoal);
+        }
+
+        .add-grade-btn svg {
+            width: 18px;
+            height: 18px;
+        }
+
+        /* Percentage Warning */
+        .percentage-info {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 16px;
+            border-radius: var(--radius-sm);
+            font-size: 0.85rem;
+            margin-top: 16px;
+            transition: all 0.3s ease;
+        }
+
+        .percentage-info.valid {
+            background: rgba(124, 181, 24, 0.1);
+            color: var(--success);
+        }
+
+        .percentage-info.warning {
+            background: rgba(255, 182, 39, 0.15);
+            color: #c48a00;
+        }
+
+        .percentage-info.error {
+            background: rgba(224, 122, 95, 0.15);
+            color: var(--terracotta-dark);
+        }
+
+        .percentage-info svg {
+            width: 18px;
+            height: 18px;
+            flex-shrink: 0;
+        }
+
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 80px 40px;
+            animation: fadeIn 0.5s ease-out;
+        }
+
+        .empty-state-icon {
+            font-size: 4rem;
+            margin-bottom: 20px;
+            animation: bounce 2s ease-in-out infinite;
+        }
+
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+
+        .empty-state h2 {
+            font-family: 'Fraunces', serif;
+            font-size: 1.8rem;
+            color: var(--charcoal);
+            margin-bottom: 12px;
+        }
+
+        .empty-state p {
+            color: var(--charcoal-light);
+            max-width: 400px;
+            margin: 0 auto;
+        }
+
+        /* Labels */
+        .column-labels {
+            display: grid;
+            grid-template-columns: 1fr 100px 100px 44px;
+            gap: 12px;
+            padding: 0 16px 8px;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--charcoal-light);
+            font-weight: 600;
+        }
+
+        /* Overall Summary */
+        .overall-summary {
+            background: linear-gradient(135deg, var(--charcoal), var(--charcoal-light));
+            color: white;
+            border-radius: var(--radius-lg);
+            padding: 32px;
+            margin-top: 32px;
+            text-align: center;
+            box-shadow: var(--shadow-lift);
+            animation: slideIn 0.6s ease-out;
+        }
+
+        .overall-summary h3 {
+            font-family: 'Fraunces', serif;
+            font-size: 1.2rem;
+            font-weight: 400;
+            opacity: 0.8;
+            margin-bottom: 8px;
+        }
+
+        .overall-gpa {
+            font-family: 'Fraunces', serif;
+            font-size: 4rem;
+            font-weight: 700;
+            line-height: 1;
+            margin-bottom: 8px;
+        }
+
+        .overall-label {
+            font-size: 0.9rem;
+            opacity: 0.7;
+        }
+
+        /* Responsive */
+        @media (max-width: 640px) {
+            h1 {
+                font-size: 2.5rem;
+            }
+
+            .class-header {
+                flex-wrap: wrap;
+            }
+
+            .toggle-class-btn {
+                order: 0;
+            }
+
+            .class-name-input {
+                font-size: 1.2rem;
+                flex: 1;
+                min-width: 0;
+                order: 1;
+            }
+
+            .final-grade {
+                order: 3;
+                margin-top: 12px;
+                width: auto;
+            }
+
+            .delete-class-btn {
+                order: 2;
+            }
+
+            .grade-item {
+                grid-template-columns: 1fr 1fr;
+                gap: 8px;
+            }
+
+            .grade-item input:first-child {
+                grid-column: 1 / -1;
+            }
+
+            .delete-grade-btn {
+                justify-self: end;
+            }
+
+            .column-labels {
+                display: none;
+            }
+
+            .grade-item input::placeholder {
+                font-size: 0.85rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="logo">
+                <div class="logo-icon">🐱</div>
+                <h1>miau</h1>
+            </div>
+            <p class="tagline">Your purrfect grade calculator</p>
+        </header>
+
+        <div class="header-actions">
+            <button class="add-class-btn" onclick="addClass()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                </svg>
+                Add New Class
+            </button>
+            <button class="clear-data-btn" onclick="clearAllData()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                    <path d="M3 6h18"></path>
+                    <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                    <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path>
+                </svg>
+                Clear All
+            </button>
+        </div>
+
+        <!-- Save indicator toast -->
+        <div id="save-indicator" class="save-indicator">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                <polyline points="22 4 12 14.01 9 11.01"></polyline>
+            </svg>
+            Saved automatically
+        </div>
+
+        <div id="classes-container" class="classes-container">
+            <!-- Classes will be added here -->
+        </div>
+
+        <div id="empty-state" class="empty-state">
+            <div class="empty-state-icon">📚</div>
+            <h2>No classes yet!</h2>
+            <p>Click "Add New Class" to start calculating your grades. You can add as many classes as you need.</p>
+        </div>
+
+        <div id="overall-summary" class="overall-summary" style="display: none;">
+            <h3>Overall Average</h3>
+            <div id="overall-gpa" class="overall-gpa">0.0</div>
+            <div class="overall-label">across all classes</div>
+        </div>
+    </div>
+
+    <script>
+        let classIdCounter = 0;
+        let gradeIdCounter = 0;
+        let classes = {};
+
+        const STORAGE_KEY = 'miau_grades_data';
+
+        // Save data to localStorage
+        let saveTimeout;
+        function saveData() {
+            const data = {
+                classIdCounter,
+                gradeIdCounter,
+                classes
+            };
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+
+            // Show save indicator
+            clearTimeout(saveTimeout);
+            const indicator = document.getElementById('save-indicator');
+            indicator.classList.add('show');
+            saveTimeout = setTimeout(() => {
+                indicator.classList.remove('show');
+            }, 2000);
+        }
+
+        // Clear all data
+        function clearAllData() {
+            if (confirm('Are you sure you want to clear all your data? This cannot be undone.')) {
+                localStorage.removeItem(STORAGE_KEY);
+                classes = {};
+                classIdCounter = 0;
+                gradeIdCounter = 0;
+                document.getElementById('classes-container').innerHTML = '';
+                updateEmptyState();
+                updateOverallAverage();
+            }
+        }
+
+        // Load data from localStorage
+        function loadData() {
+            const saved = localStorage.getItem(STORAGE_KEY);
+            if (!saved) return;
+
+            try {
+                const data = JSON.parse(saved);
+                classIdCounter = data.classIdCounter || 0;
+                gradeIdCounter = data.gradeIdCounter || 0;
+                classes = data.classes || {};
+
+                // Rebuild the UI for each saved class
+                Object.keys(classes).forEach(classId => {
+                    const classData = classes[classId];
+                    createClassCard(classId, classData.name, classData.collapsed || false);
+
+                    // Add each grade to the class
+                    Object.keys(classData.grades).forEach(gradeId => {
+                        const grade = classData.grades[gradeId];
+                        createGradeItem(classId, gradeId, grade);
+                    });
+
+                    // Calculate and display the grade
+                    calculateClassGrade(classId);
+                });
+
+                updateEmptyState();
+                updateOverallAverage();
+            } catch (e) {
+                console.error('Error loading saved data:', e);
+            }
+        }
+
+        // Create class card HTML (used by both addClass and loadData)
+        function createClassCard(classId, className = '', collapsed = false) {
+            const classCard = document.createElement('div');
+            classCard.className = 'class-card' + (collapsed ? ' collapsed' : '');
+            classCard.id = classId;
+            classCard.innerHTML = `
+                <div class="class-header">
+                    <button class="toggle-class-btn" onclick="toggleClass('${classId}')" title="Expand/Collapse">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                            <polyline points="6 9 12 15 18 9"></polyline>
+                        </svg>
+                    </button>
+                    <input type="text" class="class-name-input" placeholder="Class name (e.g., Mathematics)"
+                           value="${className}"
+                           onchange="updateClassName('${classId}', this.value)"
+                           oninput="updateClassName('${classId}', this.value)">
+                    <div class="final-grade" id="${classId}-final">
+                        <span>0.0</span>
+                    </div>
+                    <button class="delete-class-btn" onclick="deleteClass('${classId}')" title="Delete class">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                            <polyline points="3 6 5 6 21 6"></polyline>
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                        </svg>
+                    </button>
+                </div>
+                <div class="grades-section">
+                    <div class="column-labels">
+                        <span>Assignment</span>
+                        <span>Grade</span>
+                        <span>Weight %</span>
+                        <span></span>
+                    </div>
+                    <div class="grades-list" id="${classId}-grades">
+                        <!-- Grades will be added here -->
+                    </div>
+                    <button class="add-grade-btn" onclick="addGrade('${classId}')">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                            <line x1="12" y1="5" x2="12" y2="19"></line>
+                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                        </svg>
+                        Add Assignment
+                    </button>
+                    <div class="percentage-info warning" id="${classId}-percentage">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <line x1="12" y1="8" x2="12" y2="12"></line>
+                            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                        </svg>
+                        <span>Total weight: 0% — Add assignments to reach 100%</span>
+                    </div>
+                </div>
+            `;
+
+            document.getElementById('classes-container').appendChild(classCard);
+        }
+
+        // Create grade item HTML (used by both addGrade and loadData)
+        function createGradeItem(classId, gradeId, gradeData = { name: '', score: null, weight: null }) {
+            const gradeItem = document.createElement('div');
+            gradeItem.className = 'grade-item';
+            gradeItem.id = gradeId;
+
+            const scoreValue = gradeData.score !== null ? gradeData.score : '';
+            const weightValue = gradeData.weight !== null ? gradeData.weight : '';
+
+            gradeItem.innerHTML = `
+                <input type="text" class="grade-name" placeholder="Assignment name"
+                       value="${gradeData.name || ''}"
+                       onchange="updateGrade('${classId}', '${gradeId}', 'name', this.value)"
+                       oninput="updateGrade('${classId}', '${gradeId}', 'name', this.value)">
+                <input type="number" placeholder="Grade" min="0" max="100" step="0.1"
+                       value="${scoreValue}"
+                       onchange="updateGrade('${classId}', '${gradeId}', 'score', this.value)"
+                       oninput="updateGrade('${classId}', '${gradeId}', 'score', this.value)">
+                <input type="number" placeholder="Weight %" min="0" max="100" step="0.1"
+                       value="${weightValue}"
+                       onchange="updateGrade('${classId}', '${gradeId}', 'weight', this.value)"
+                       oninput="updateGrade('${classId}', '${gradeId}', 'weight', this.value)">
+                <button class="delete-grade-btn" onclick="deleteGrade('${classId}', '${gradeId}')" title="Delete">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            `;
+
+            document.getElementById(`${classId}-grades`).appendChild(gradeItem);
+        }
+
+        function addClass() {
+            const classId = `class-${classIdCounter++}`;
+            classes[classId] = {
+                name: '',
+                grades: {},
+                collapsed: false
+            };
+
+            createClassCard(classId);
+            updateEmptyState();
+
+            // Add first grade automatically
+            addGrade(classId);
+            saveData();
+        }
+
+        function toggleClass(classId) {
+            const card = document.getElementById(classId);
+            const isCollapsed = card.classList.toggle('collapsed');
+            classes[classId].collapsed = isCollapsed;
+            saveData();
+        }
+
+        function deleteClass(classId) {
+            const card = document.getElementById(classId);
+            card.style.animation = 'fadeOut 0.3s ease-out forwards';
+
+            setTimeout(() => {
+                card.remove();
+                delete classes[classId];
+                updateEmptyState();
+                updateOverallAverage();
+                saveData();
+            }, 300);
+        }
+
+        function addGrade(classId) {
+            const gradeId = `grade-${gradeIdCounter++}`;
+            classes[classId].grades[gradeId] = {
+                name: '',
+                score: null,
+                weight: null
+            };
+
+            createGradeItem(classId, gradeId);
+            saveData();
+        }
+
+        function deleteGrade(classId, gradeId) {
+            const item = document.getElementById(gradeId);
+            item.style.animation = 'fadeOut 0.2s ease-out forwards';
+
+            setTimeout(() => {
+                item.remove();
+                delete classes[classId].grades[gradeId];
+                calculateClassGrade(classId);
+                saveData();
+            }, 200);
+        }
+
+        function updateClassName(classId, value) {
+            classes[classId].name = value;
+            saveData();
+        }
+
+        function updateGrade(classId, gradeId, field, value) {
+            if (field === 'score' || field === 'weight') {
+                classes[classId].grades[gradeId][field] = value === '' ? null : parseFloat(value);
+            } else {
+                classes[classId].grades[gradeId][field] = value;
+            }
+            calculateClassGrade(classId);
+            saveData();
+        }
+
+        function calculateClassGrade(classId) {
+            const classData = classes[classId];
+            let totalWeight = 0;
+            let weightedSum = 0;
+
+            Object.values(classData.grades).forEach(grade => {
+                if (grade.weight !== null && !isNaN(grade.weight)) {
+                    totalWeight += grade.weight;
+                    if (grade.score !== null && !isNaN(grade.score)) {
+                        weightedSum += grade.score * (grade.weight / 100);
+                    }
+                }
+            });
+
+            // Calculate final grade
+            let finalGrade = 0;
+            if (totalWeight > 0) {
+                // Show grade based on filled weights only
+                finalGrade = (weightedSum / totalWeight) * 100;
+            }
+
+            // Update display
+            const finalEl = document.getElementById(`${classId}-final`);
+            finalEl.innerHTML = `<span>${finalGrade.toFixed(1)}</span>`;
+
+            // Update color based on grade
+            finalEl.className = 'final-grade';
+            if (finalGrade >= 90) finalEl.classList.add('excellent');
+            else if (finalGrade >= 70) finalEl.classList.add('good');
+            else if (finalGrade >= 50) finalEl.classList.add('warning');
+            else finalEl.classList.add('danger');
+
+            // Update percentage info
+            const percentEl = document.getElementById(`${classId}-percentage`);
+            if (totalWeight === 100) {
+                percentEl.className = 'percentage-info valid';
+                percentEl.innerHTML = `
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                        <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                    </svg>
+                    <span>Perfect! Total weight is exactly 100%</span>
+                `;
+            } else if (totalWeight > 100) {
+                percentEl.className = 'percentage-info error';
+                percentEl.innerHTML = `
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <line x1="15" y1="9" x2="9" y2="15"></line>
+                        <line x1="9" y1="9" x2="15" y2="15"></line>
+                    </svg>
+                    <span>Total weight: ${totalWeight.toFixed(1)}% — Exceeds 100%, please adjust</span>
+                `;
+            } else {
+                percentEl.className = 'percentage-info warning';
+                percentEl.innerHTML = `
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <line x1="12" y1="8" x2="12" y2="12"></line>
+                        <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                    </svg>
+                    <span>Total weight: ${totalWeight.toFixed(1)}% — ${(100 - totalWeight).toFixed(1)}% remaining</span>
+                `;
+            }
+
+            updateOverallAverage();
+        }
+
+        function updateOverallAverage() {
+            const classIds = Object.keys(classes);
+            if (classIds.length === 0) {
+                document.getElementById('overall-summary').style.display = 'none';
+                return;
+            }
+
+            let totalGrades = 0;
+            let classCount = 0;
+
+            classIds.forEach(classId => {
+                const classData = classes[classId];
+                let totalWeight = 0;
+                let weightedSum = 0;
+
+                Object.values(classData.grades).forEach(grade => {
+                    if (grade.weight !== null && !isNaN(grade.weight)) {
+                        totalWeight += grade.weight;
+                        if (grade.score !== null && !isNaN(grade.score)) {
+                            weightedSum += grade.score * (grade.weight / 100);
+                        }
+                    }
+                });
+
+                if (totalWeight > 0) {
+                    totalGrades += (weightedSum / totalWeight) * 100;
+                    classCount++;
+                }
+            });
+
+            const average = classCount > 0 ? totalGrades / classCount : 0;
+            document.getElementById('overall-gpa').textContent = average.toFixed(1);
+            document.getElementById('overall-summary').style.display = 'block';
+        }
+
+        function updateEmptyState() {
+            const container = document.getElementById('classes-container');
+            const emptyState = document.getElementById('empty-state');
+
+            if (container.children.length === 0) {
+                emptyState.style.display = 'block';
+            } else {
+                emptyState.style.display = 'none';
+            }
+        }
+
+        // Add fadeOut animation
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes fadeOut {
+                from { opacity: 1; transform: scale(1); }
+                to { opacity: 0; transform: scale(0.95); }
+            }
+        `;
+        document.head.appendChild(style);
+
+        // Load saved data when page loads
+        document.addEventListener('DOMContentLoaded', loadData);
+    </script>
+</body>
+</html>
