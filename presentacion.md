@@ -76,6 +76,182 @@ Un CLAUDE.md a nivel usuario (~/.claude/CLAUDE.md):
 - Nunca force push a main
 - PRs requieren review
 ````
+
+## Hooks
+### ¿Qué son y dónde viven?
+Comandos shell o prompts que se ejecutan automáticamente en momentos específicos del ciclo de vida de Claude Code. Son la forma de automatizar acciones: formatear código después de cada edit, bloquear comandos destructivos, inyectar contexto al inicio de sesión, correr tests, enviar notificaciones, forzar reglas, etc.
+
+Se configuran en archivos JSON. Dónde se pongan define su alcance:
+
+| Ubicación | Alcance |
+|-----------|---------|
+| `~/.claude/settings.json` | Todos tus proyectos |
+| `.claude/settings.json` | Solo el proyecto actual (compartible via git) |
+| `.claude/settings.local.json` | Solo el proyecto actual (gitignored) |
+| Plugin `hooks/hooks.json` | Cuando el plugin está habilitado |
+| Frontmatter de skill/agent | Solo mientras el componente está activo |
+
+Para crear un hook hay 3 formas:
+- `/hooks` — menú interactivo dentro de Claude Code (la más fácil)
+- Editar el JSON directamente en el settings.json correspondiente
+- Pedirle a Claude Code que lo haga por ti
+
+### Los eventos
+Un hook se dispara cuando ocurre un **evento**. Hay 14 eventos posibles:
+
+**Sesión:**
+| Evento | Cuándo se dispara |
+|--------|-------------------|
+| `SessionStart` | Cuando la sesión comienza o se resume |
+| `SessionEnd` | Cuando la sesión termina |
+
+**Prompt del usuario:**
+| Evento | Cuándo se dispara |
+|--------|-------------------|
+| `UserPromptSubmit` | Cuando el usuario envía un prompt, antes de que Claude lo procese |
+
+**Tools:**
+| Evento | Cuándo se dispara |
+|--------|-------------------|
+| `PreToolUse` | Antes de que una tool se ejecute. Puede bloquearla |
+| `PostToolUse` | Después de que una tool se ejecuta exitosamente |
+| `PostToolUseFailure` | Después de que una tool falla |
+| `PermissionRequest` | Cuando aparece un diálogo de permisos |
+
+**Subagentes:**
+| Evento | Cuándo se dispara |
+|--------|-------------------|
+| `SubagentStart` | Cuando se spawnea un subagente |
+| `SubagentStop` | Cuando un subagente termina |
+
+**Agent Teams:**
+| Evento | Cuándo se dispara |
+|--------|-------------------|
+| `TeammateIdle` | Cuando un teammate está por quedar idle |
+| `TaskCompleted` | Cuando una tarea se marca como completada |
+
+**Otros:**
+| Evento | Cuándo se dispara |
+|--------|-------------------|
+| `Stop` | Cuando Claude termina de responder |
+| `Notification` | Cuando Claude Code envía una notificación |
+| `PreCompact` | Antes de que se compacte el contexto |
+
+### Matchers
+El matcher es un filtro regex que define **cuándo específicamente** se dispara un hook dentro de un evento. Sin matcher, el hook se dispara en cada ocurrencia del evento.
+
+Ejemplos:
+- Matcher `"Bash"` → solo se activa cuando la tool es Bash
+- Matcher `"Edit|Write"` → se activa cuando la tool es Edit o Write
+- Matcher `"mcp__memory__.*"` → se activa para cualquier tool del MCP server "memory"
+- Matcher `"startup"` en SessionStart → solo al iniciar sesión nueva (no al resumir)
+
+### Tipos de hooks
+Hay 3 tipos de handlers que se pueden ejecutar:
+
+- **Command** (`type: "command"`) — ejecuta un comando shell. Recibe JSON por stdin con info del evento y responde con exit codes y stdout.
+- **Prompt** (`type: "prompt"`) — envía un prompt a un modelo Claude (Haiku por defecto) que evalúa y devuelve una decisión sí/no en JSON.
+- **Agent** (`type: "agent"`) — spawnea un subagente que puede usar tools (Read, Grep, Glob) para verificar condiciones antes de decidir.
+
+### Exit codes
+Los exit codes son la forma en que un hook comunica su decisión:
+
+- **Exit 0** — OK, la acción sigue adelante. Si hay JSON en stdout, Claude Code lo procesa.
+- **Exit 2** — Bloquear. La acción se previene (ej: PreToolUse bloquea la tool, UserPromptSubmit rechaza el prompt). El texto en stderr se muestra a Claude como error.
+- **Otro código** — Error no-bloqueante. Se muestra en modo verbose y la ejecución continúa.
+
+### Formato
+La estructura JSON tiene 3 niveles: evento → matcher → handler(s).
+```json
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/mi-script.sh"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+Esto se pone dentro de alguno de los `settings.json` según el alcance que se quiera.
+
+### Ejemplos
+**Bloquear comandos destructivos** — un hook de PreToolUse que impide ejecutar `rm -rf`:
+```bash
+#!/bin/bash
+# .claude/hooks/block-rm.sh
+COMMAND=$(jq -r '.tool_input.command')
+
+if echo "$COMMAND" | grep -q 'rm -rf'; then
+  echo "Comando destructivo bloqueado por hook" >&2
+  exit 2  # bloquear
+fi
+
+exit 0  # permitir
+```
+```json
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/block-rm.sh"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+**Auto-format con Prettier** — formatea automáticamente después de cada edit en archivos JS/TS:
+```json
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npx prettier --write \"$(jq -r '.tool_input.file_path')\"",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+**Verificar con un prompt antes de parar** — un hook de tipo prompt que evalúa si Claude debería dejar de trabajar:
+```json
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "prompt",
+            "prompt": "Evaluate if Claude should stop: $ARGUMENTS. Check if all tasks are complete.",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
 ## Skills
 ### ¿Qué son y donde viven?
 Técnicamente son archivos markdown ".md"
@@ -130,11 +306,11 @@ Research $ARGUMENTS thoroughly:
 3. Summarize findings with specific file references
 4. Note any patterns or potential issue
 ````
-***********Será necesario un ejemplo de vdd onda verlo en accion?**************
+***********Será necesario un ejemplo de vdd onda verlo en accion? Podria mostrar una SKILL.md**************
 
 ### ¿Cuando es invocada una Skill?
 Depende. Automaticamente, Claude Code cada vez que tiene una tarea en sus manos, lee la description de las Skill para ver si sería útil o no y procede a decidir si activarla o no. Se pueden llamar manualmente tambien, con `/skill-name`.  
-Una buena practica para skills, es que en la practica el llamado automatico no puede ser tan certero como a uno le gustaria, por lo que se puede crear un Hook (como `UserPromptSubmit`) para que Claude analice y active las skills más confiablemente.
+Una buena costumbre para skills, es que en la practica el llamado automatico no puede ser tan certero como a uno le gustaria, por lo que se puede crear un Hook (como `UserPromptSubmit`) para que Claude analice y active las skills más confiablemente.
 
 ### ¿Tienen prioridad sobre otras instrucciones?
 ¿Qué sucede si una skill dice X, pero el CLAUDE.md dice Y sobre un mismo tema? En general no hay una jerarquía clara y definida. 
@@ -149,40 +325,21 @@ Una especie de jerarquia podria ser:
 
 Es importante tener en mente que el CLAUDE.md son instrucciones de texto que Claude lee, interpreta e intenta seguir, pero que puede "ignorar" si hay contexto conflictivo. Y que a medida que se llena el contexto claude puede ir "olvidando" lo que está muy atras y le va dando prioridad a lo más reciente.
 
-## Hooks
-### ¿Que son y donde viven?
-Es un archivo .json.  
-Hay un par de maneras distintas para poder crear un hook. Editando directamente el .json, usar el comando interactivo, o pedirle a claude code que lo haga por ti. La segunda suele ser mas facil y rapida. Ya que nos pedira cuando se activa el hook, el matcher, describir el comando a ejecutar.  
-Es importante saber, los tipos de eventos: (lista acotada de ejemplos)
-- SessionStart: cuando la sesion comuenza
-- PreToolUse: antes de que una tool, una accion concreta, se ejecute.
-- PostToolUse: luego de que una tool se ejecute
-- Notification: cuando claude code envia una notificacion.
-- PreCompact: antes que se compacte el contexto.  
-
-Los matcher, que son un filtro que indica que tool activa el hook.
-
-Si se quiere disponible para todos los proyectos:
-~/.claude/settings.json
-
-Si se quiere disponible para el proyecto actual nada más:
-.claude/settings.json
-
-### Formato de un Hook
-### Ejemplo
-Desde correr shell commands automaticamente, a formatear codigo, enviar notificaciones, validar comandos o forzar ciertas reglas.
 ## Subagents
-Son agentes que se encargan de tipos específicos de tareas y que corren en su context independiente.  
+Son instancias independientes de Claude que se encargan de tareas específicas, cada una con su propio contexto separado. A diferencia de las Skills —que inyectan instrucciones en el contexto actual de Claude— un subagente no ve el historial de conversación del agente que lo lanzó. Solo recibe la descripción de su tarea, el CLAUDE.md del proyecto y las skills que tenga asignadas. Cuando termina, devuelve su resultado al agente principal, que lo incorpora a su contexto.
 
-Los subagentes estan definidos en archivos markdown con YAML frontmatter. Se pueden crear manualmente o con el comando `/agents`.  
+Esto los hace ideales para tareas autocontenidas: research, reviews, análisis de archivos, o cualquier trabajo que no necesite el historial de la conversación para completarse.
 
-Se pueden crear a nivel usuario en `~/.claude/agents/` o nivel del proyecto actual en`.claude/agents/`.  
+Los subagentes están definidos en archivos Markdown con YAML frontmatter. Se pueden crear manualmente o con el comando `/agents`.
+
+Se pueden crear a nivel usuario en `~/.claude/agents/` o a nivel del proyecto actual en `.claude/agents/`.
 
 ### Formato de un Subagent
-Si se elige hacerlo con ayuda, uno puede poner un prompt que describa la mision del agente como por ejemplo: "A code improvement agent that scans files and suggests improvements
-for readability, performance, and best practices. It should explain
-each issue, show the current code, and provide an improved version."  
-Luego se elige los tools a los cuales tendrá acceso. Hay distintos tipos:
+Si se elige hacerlo con ayuda, uno puede poner un prompt que describa la misión del agente como por ejemplo:
+```bash
+"A code improvement agent that scans files and suggests improvements for readability, performance, and best practices. It should explain each issue, show the current code, and provide an improved version."
+```
+Luego se eligen los tools a los cuales tendrá acceso. Hay distintos tipos:
 - Read-only tools como Glob, Grep, Read, WebFetch, WebSearch.
 - Edit tools como Edit, Write, NotebookEdit.
 - Execution tools como Bash.
@@ -192,18 +349,18 @@ Luego se selecciona el modelo que usará y tendremos un agente listo para usarlo
 `````
 ---
 name: identificador unico
-description: cuando usarlo. Claude lo utiliza para decidir si usarlo o no. 
+description: cuando usarlo. Claude lo utiliza para decidir si usarlo o no.
 model: un modelo distinto o el mismo que en el main
 ---
 
 Descripcion e instrucciones especificas del subagente
 `````
-Donde los campos disponibles en el frontmatter, a parte de name y description, son: 
-- tools: Los tools que el subagente puede utilizar
+Donde los campos disponibles en el frontmatter, a parte de name y description, son:
+- tools: los tools que el subagente puede utilizar
 - disallowedTools: tools a rechazar
 - model: modelo a usar, `sonnet`, `opus`, ...
-- permissionMode: `default`, `acceptEdits`, `delegate`, `dontAsk`, `bypassPermissions`, or `plan`.*********
-- maxTurns: numero maximo de turns antes que pare.
+- permissionMode: nivel de permisos del subagente. `default` hereda los del agente principal, `acceptEdits` acepta edits sin preguntar, `bypassPermissions` bypasea todo, `plan` solo puede planificar sin ejecutar.
+- maxTurns: número máximo de turns antes de que pare.
 - skills: las skills a cargar con el subagente.
 - hooks: hooks atados a mientras corra el subagente.
 
@@ -216,9 +373,27 @@ tools: Read, Glob, Grep
 model: sonnet
 ---
 
-You are a code reviewer. When invoked, analyze the code and provide
-specific, actionable feedback on quality, security, and best practices.
+You are a code reviewer. When invoked, analyze the code and provide specific, actionable feedback on quality, security, and best practices.
 `````
+
+### ¿Cuándo se invoca un Subagente?
+Es un modelo híbrido:
+
+- **Automáticamente** — Claude lee la `description` de cada subagente disponible y decide si la tarea actual encaja. Una buena descripción es clave: es lo que Claude usa para decidir si invocarlo o no. Si es vaga, el matching automático será menos confiable.
+- **Explícitamente** — se puede pedir directamente: *"usa el agente code-reviewer para revisar mis cambios"*. Claude lo invocará aunque no lo hubiera hecho por su cuenta.
+- **En background** — con `Ctrl+B` o diciendo "corre esto en el fondo", el subagente trabaja mientras la conversación principal continúa.
+
+### Skills vs Subagents
+Aunque se definen de forma similar, operan de maneras muy distintas:
+
+| | Skill | Subagente |
+|---|---|---|
+| **Qué hace** | Inyecta instrucciones en el contexto actual | Corre como instancia separada de Claude |
+| **Contexto** | Comparte el historial de conversación | No ve el historial del agente principal |
+| **Resultado** | Claude sigue trabajando con las instrucciones cargadas | Devuelve un resultado puntual al finalizar |
+| **Ideal para** | Definir cómo Claude debe comportarse en una tarea | Tareas autocontenidas que se pueden delegar |
+
+La sección de Parallelization más adelante cubre cómo aprovechar subagentes para trabajo en paralelo y los distintos niveles de paralelización disponibles.
 ## Plugins
 ### ¿Qué son y dónde viven?
 Paquetes que agrupan skills, hooks, agents y más para distribuir. 
@@ -259,7 +434,7 @@ Todo plugin necesita un `.claude-plugin/plugin.json`. La estructura básica es:
 }
 ```
 
-Reglas importantes del validador:
+Reglas importantes para que sea valido:
 - `version` es obligatorio — sin este campo, la instalación falla
 - Todos los campos de componentes (skills, agents, commands) deben ser arrays, nunca strings
 - `agents` requiere rutas explícitas a archivos (no acepta directorios como `"./agents/"`)
@@ -296,7 +471,7 @@ Un plugin más completo con skills y agents:
 ```
 ## Interesting Repositories
 ### Superpowers
-Un plugin para Claude Code que **impone un workflow obligatorio** de desarrollo. No sugiere buenas prácticas — las fuerza. Es una colección de 14 skills, 1 agente, y un hook de sesión que trabajan en conjunto para que Claude Code siga un proceso disciplinado: TDD, test driven development, debugging sistemático, y verificación antes de declarar algo como terminado.
+Un plugin para Claude Code que **impone un workflow obligatorio** de desarrollo. No sugiere, fuerza. Es una colección de 14 skills, 1 agente, y un hook de sesión que trabajan en conjunto para que Claude Code siga un proceso disciplinado: TDD, test driven development, debugging sistemático, y verificación antes de declarar algo como terminado.
 
 Se instala como plugin:
 ```text
@@ -433,7 +608,7 @@ En total: 12 agentes, 24 skills, 23 comandos, 8 archivos de rules, y hooks. Algu
 - `doc-updater` — genera y mantiene documentación y codemaps
 - `database-reviewer` — especialista en PostgreSQL: optimización de queries, seguridad RLS
 
-**Skills** (24 total) — organizadas por dominio:
+**Skills** (24 total) — organizadas por categoria:
 - Workflow: `tdd-workflow`, `verification-loop`, `continuous-learning-v2`, `strategic-compact`
 - Frontend: `frontend-patterns` (React, hooks, performance)
 - Backend: `backend-patterns` (APIs, repository pattern, caching)
@@ -449,7 +624,7 @@ En total: 12 agentes, 24 skills, 23 comandos, 8 archivos de rules, y hooks. Algu
 - `/go-test`, `/go-review`, `/go-build` — específicos de Go
 - `/update-docs`, `/update-codemaps` — documentación
 
-**Rules** (8 archivos) — guías que siempre se siguen, organizadas por tema: seguridad, estilo de código, testing (80% coverage mínimo), git workflow (conventional commits), cuándo delegar a subagentes, performance, y patrones (inmutabilidad, DRY, YAGNI).
+**Rules** (8 archivos) — guías que siempre se siguen, organizadas por tema: seguridad, estilo de código, testing (80% coverage mínimo), git workflow (conventional commits), cuándo delegar a subagentes, performance, y patrones (inmutabilidad, DRY, YAGNI). Mientras que las skills por ejemplo proveen de material y conocimiento para tareas especificas, las rules definen standares, convenciones y checklists que aplican más globalmente.
 
 **Hooks** — automatizaciones que corren en eventos:
 - Auto-format con Prettier después de cada edit en archivos JS/TS
@@ -482,7 +657,7 @@ Cada instinct tiene: un trigger (cuándo aplica), una acción (qué hacer), evid
 | **Comandos** | Pocos, con secuencia estricta | 23, encadenables libremente |
 | **Innovación** | Anti-racionalización, Iron Laws | Aprendizaje continuo con instincts |
 | **Estado** | Sin persistencia entre sesiones | Aprende y persiste contexto |
-| **Lenguajes** | Agnóstico (solo proceso) | JS/TS, Go, Java/Spring, PostgreSQL |
+| **Lenguajes** |  (solo proceso) | JS/TS, Go, Java/Spring, PostgreSQL |
 
 No son mutuamente excluyentes — se podrían usar ambos. Superpowers para la disciplina del proceso, Everything Claude Code para las herramientas especializadas y el aprendizaje.
 
@@ -577,7 +752,7 @@ Lo más potente del plugin. Cuando se corre `/workflows:review`, actúa como **o
 ```
 Cada agente aplica su propio filtro especializado al mismo código. El resultado: un review multidimensional donde seguridad, performance, arquitectura, simplicidad y convenciones se evalúan simultáneamente.
 
-#### El sistema compound en detalle
+#### El sistema de compound en detalle
 El paso `/workflows:compound` es un pipeline de 5 etapas:
 1. **Context Analyzer** — extrae tipo de problema y síntomas
 2. **Solution Extractor** — captura causa raíz y fix que funcionó
@@ -638,8 +813,10 @@ cd ../project-feature-a && claude
 
 ```bash
 # Comandos útiles
-git worktree list                              # Listar todos los worktrees
-git worktree remove ../project-feature-a       # Eliminar un worktree
+# Listar todos los worktrees
+git worktree list             
+# Eliminar un worktree                 
+git worktree remove ../project-feature-a       
 ```
 
 Ventajas:
